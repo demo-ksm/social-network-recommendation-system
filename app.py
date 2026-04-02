@@ -5,29 +5,16 @@ import threading
 
 app = Flask(__name__)
 
-# ---------------- DATA LOADING ----------------
+# ---------------- LOAD DATA ----------------
 def load_data(filename):
     with open(filename, "r") as file:
         return json.load(file)
 
-# ---------------- DATA CLEANING ----------------
+# ---------------- CLEAN DATA ----------------
 def clean_data(data):
-    # Remove users with empty names
-    data["users"] = [u for u in data["users"] if u["name"].strip()]
-
-    # Remove duplicate friends
     for u in data["users"]:
         u["friends"] = list(set(u["friends"]))
-
-    # Keep valid users only
-    data["users"] = [u for u in data["users"] if u["friends"] or u["liked_pages"]]
-
-    # Remove duplicate pages
-    page_map = {}
-    for p in data["pages"]:
-        page_map[p["id"]] = p
-    data["pages"] = list(page_map.values())
-
+        u["liked_pages"] = list(set(u["liked_pages"]))
     return data
 
 # ---------------- PEOPLE RECOMMENDATION ----------------
@@ -46,9 +33,10 @@ def find_people_you_may_know(user_id, data):
     suggestions = {}
 
     for friend in direct:
-        for mutual in friends_map[friend]:
-            if mutual != user_id and mutual not in direct:
-                suggestions[mutual] = suggestions.get(mutual, 0) + 1
+        if friend in friends_map:   # safety check
+            for mutual in friends_map[friend]:
+                if mutual != user_id and mutual not in direct:
+                    suggestions[mutual] = suggestions.get(mutual, 0) + 1
 
     ordered = sorted(suggestions, key=suggestions.get, reverse=True)
     return [id_name_map[i] for i in ordered]
@@ -74,7 +62,7 @@ def find_pages_you_might_like(user_id, data):
         if other_id != user_id:
             common = liked.intersection(pages)
 
-            if len(common) > 0:
+            if common:   # cleaner check
                 for page in pages:
                     if page not in liked:
                         suggestions[page] = suggestions.get(page, 0) + len(common)
@@ -109,11 +97,10 @@ def home():
 
     return render_template("index.html", people=people, pages=pages, error=error)
 
-# ---------------- AUTO OPEN BROWSER ----------------
+# ---------------- AUTO OPEN ----------------
 def open_browser():
     webbrowser.open("http://127.0.0.1:5000")
 
-# ---------------- RUN APP ----------------
 if __name__ == "__main__":
     threading.Timer(1, open_browser).start()
     app.run(debug=True)
